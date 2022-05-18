@@ -1,0 +1,13 @@
+__pycache__
+__pycache__/*
+_debug.py
+_debug.sh
+debug_libutil;.ipynb
+log
+.ipynb_checkpoints
+.ipynb_checkpoints/*
+_debug*
+.vscode
+.vscode/*
+.pytest_cache
+.pytest_cache/*
