@@ -7,12 +7,14 @@ Installation process/how to is described in this:
 ## Local
 ```sh
 git clone http://192.168.0.105:3000/RimuEirnarn/GTRNv2 # Or any instances
-python3.9 GTRNv2/main.py```
+python3.9 GTRNv2/main.py
+```
 
 ## Global (Linux)
 ```sh
 git clone http://192.168.0.105:3000/RimuEirnarn/GTRNv2 # Or any instances
-sudo python3.9 GTRNv2/install_global.py```
+sudo python3.9 GTRNv2/install_global.py
+```
 
 # License
 This program/game is licensed in BSD-3 Clause.
