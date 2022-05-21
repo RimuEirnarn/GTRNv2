@@ -39,6 +39,7 @@ class NewUserWarning(UserWarning):
 
 class RedefineIsRequired(NewUserWarning):
     """This method needs to re-defined on subclass."""
+
     def warn(self, *args, **kwargs):
         super().warn("This method needs to re-defined on subclass", *args, **kwargs)
 
@@ -74,14 +75,14 @@ class Symbol:
     will return True"""
     _sym = {}
 
-    def __new__(cls, name, value, /, lt_hook: Callable=None, le_hook: Callable=None, gt_hook: Callable=None, ge_hook: Callable=None):
+    def __new__(cls, name, value, /, lt_hook: Callable = None, le_hook: Callable = None, gt_hook: Callable = None, ge_hook: Callable = None):
         if name in cls._sym:
             return cls._sym[name]
         self = super().__new__(cls)
         Symbol._sym[name] = self
         return self
-    
-    def __init__(self, name, value, /, lt_hook: Callable=None, le_hook: Callable=None, gt_hook: Callable=None, ge_hook: Callable=None):
+
+    def __init__(self, name, value, /, lt_hook: Callable = None, le_hook: Callable = None, gt_hook: Callable = None, ge_hook: Callable = None):
         self._name = name
         self._value = value
         self._type = type(value)
@@ -109,16 +110,16 @@ class Symbol:
         if self._type is not float:
             return NotImplemented
         return self._value
-    
+
     def __gt__(self, other):
         return self._hooks['gt'](other)
-    
+
     def __le__(self, other):
         return self._hooks['le'](other)
-    
+
     def __lt__(self, other):
         return self._hooks['lt'](other)
-    
+
     def __ge__(self, other):
         return self._hooks['ge'](other)
 
@@ -129,7 +130,6 @@ class Symbol:
 
 
 default = Symbol('default', object())
-Memory = Symbol('Memory', 'sqlite+pysqlite:///:memory:')
 
 # =========
 
@@ -417,8 +417,8 @@ class Base64IO(FileIO):
     def __init__(self, filename, mode: MODE):
         super().__init__(filename, mode)
         self._mode = mode
-    
-    def read(self, __size: int=None) -> Union[str, bytes]:
+
+    def read(self, __size: int = None) -> Union[str, bytes]:
         x = super().read(__size)
         if isinstance(x, str):
             x = x.encode('utf-8')
@@ -432,14 +432,14 @@ class Base64IO(FileIO):
         if 'b' in self._mode:
             return super().write(b64encode(x, b'-_'))
         return super().write(b64encode(x, b'-_').decode('utf-8'))
-    
+
     def _raw_read(self, __size: int) -> Union[str, bytes]:
         return super().read(__size)
-    
+
     def _raw_read(self, buffer: Union[str, bytes]) -> int:
         return super().write(buffer)
 
- 
+
 # =================================================================
 
 #                         Utility Functions
