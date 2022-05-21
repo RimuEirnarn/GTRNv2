@@ -11,3 +11,4 @@ _debug*
 .vscode/*
 .pytest_cache
 .pytest_cache/*
+_scanimportdir.sh
