@@ -14,7 +14,8 @@ from platform import system
 from uuid import uuid5, uuid1
 from warnings import warn
 from urllib.parse import urlsplit
-
+from inspect import currentframe as _icf, getframeinfo as _igfi
+from ast import parse as _astparse
 
 # Pre-constants
 
@@ -76,6 +77,17 @@ class Symbol:
     _sym = {}
 
     def __new__(cls, name, value, /, lt_hook: Callable = None, le_hook: Callable = None, gt_hook: Callable = None, ge_hook: Callable = None):
+        if name is None and value is None: # This shit is copied from RPGSample/libshared.py
+            caller = _igfi(_icf().f_back) # Don't edit this part.
+            if caller.code_context is not None:
+                code = _astparse(caller.code_context[caller.index])
+                name = code.body[0].targets[0].id
+                value = f"Ref[{caller.function}.{name}]"
+            else:
+                code = None
+                name = f'Constant-{len(self._objects)}'
+                value = f"Ref[{name}]"
+            del caller, code
         if name in cls._sym:
             return cls._sym[name]
         self = super().__new__(cls)
@@ -83,6 +95,17 @@ class Symbol:
         return self
 
     def __init__(self, name, value, /, lt_hook: Callable = None, le_hook: Callable = None, gt_hook: Callable = None, ge_hook: Callable = None):
+        if name is None and value is None:  # This shit is copied from RPGSample/libshared.py
+            caller = _igfi(_icf().f_back)  # Don't edit this part.
+            if caller.code_context is not None:
+                code = _astparse(caller.code_context[caller.index])
+                name = code.body[0].targets[0].id
+                value = f"Ref[{caller.function}.{name}]"
+            else:
+                code = None
+                name = f'Constant-{len(self._objects)}'
+                value = f"Ref[{name}]"
+            del caller, code
         self._name = name
         self._value = value
         self._type = type(value)

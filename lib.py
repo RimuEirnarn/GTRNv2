@@ -7,7 +7,6 @@ from typing import Dict, Iterable, List, NamedTuple, Protocol
 from sqlite3 import connect
 from typing import Any, Union
 from uuid import UUID
-
 try:
     from .libutil import Configuration, Symbol, make_uid, RedefineIsRequired
     from .libutilsql import make_table, string, integer, Value, primary_key, _checktable, truncate_table, unique
@@ -291,7 +290,7 @@ class BaseGame:
     def start(self):
         self.run()
         self.reset()
-
+    
     def reset(self):
         self._mystery = None
         self._request_state = already_stop
@@ -303,23 +302,24 @@ class BaseGame:
     @property
     def isRunning(self):
         return self._running
-
+    
     @property
     def Level(self):
         return self._level
-
+    
     def __repr__(self):
         return f"<{type(self).__name__} State={self._request_state._name} Players={len(self._players)} Running={self._running}>"
 
 
 class ZeroPlayer(BaseGame):
-    def __init__(self, bots: int = 0, level: int = 5):
+    def __init__(self, bots: int=0, level: int=5):
         super().__init__()
         self.set_level(level)
         self._players.append(Bot("Bot-0", self._level))
         if bots > 1:
             for a in range(1, bots):
                 self._players.append(Bot(f"Bot-{a}", self._level))
+
 
     def run(self):
         smin = BaseGame.level.get(self._level, [None, -1024])[1]
@@ -331,8 +331,7 @@ class ZeroPlayer(BaseGame):
         for p in self._players:
             if hasattr(p, 'tell'):
                 p.tell(maxplayers=len(self._players))
-        print(
-            f"Mystery Number: {self._mystery} (level {self._level})\nRanging from: {smin} to {smax}")
+        print(f"Mystery Number: {self._mystery} (level {self._level})\nRanging from: {smin} to {smax}")
         while self._running is True:
             self._turn += 1
             print(f"Turn {self._turn}")
@@ -340,10 +339,8 @@ class ZeroPlayer(BaseGame):
                 try:
                     player_input = p.get()
                     identifier = self.scan_value(p, player_input)
-                    print(
-                        f"{p.Name}: {player_input} {'(Too big)' if identifier.was is big else ('(Too small)' if identifier.was is small else 'Correct!')}")
-                    [_p.push_put(identifier)
-                     for _p in self._players if hasattr(_p, 'push_put')]
+                    print(f"{p.Name}: {player_input} {'(Too big)' if identifier.was is big else ('(Too small)' if identifier.was is small else 'Correct!')}")
+                    [_p.push_put(identifier) for _p in self._players if hasattr(_p, 'push_put')]
                 except KeyboardInterrupt:
                     try:
                         input("Interrupted.")
@@ -352,9 +349,50 @@ class ZeroPlayer(BaseGame):
                         break
             if self._request_state == stop_game:
                 self._running = False
-        print(
-            f'Game ends in {self._turn} turn(s) with {len(self._winner)} winning player(s)!')
+        print(f'Game ends in {self._turn} turn(s) with {len(self._winner)} winning player(s)!')
 
+class SinglePlayer(BaseGame):
+    def __init__(self, *players, level=5):
+        super().__init__()
+        self.set_level(level)
+        self._players.extend(players)
+    
+    def run(self):
+        smin = BaseGame.level.get(self._level, [None, -1024])[1]
+        smax = BaseGame.level.get(self._level, [1024, None])[0]
+        self._mystery = randint(smin, smax)
+        self._running = True
+        self._turn = 0
+        flag = None
+        for p in self._players:
+            if hasattr(p, 'tell'):
+                p.tell(maxplayers=len(self._players))
+        print(f"[GTRNv2] LEVEL {self._level}! Range {smin} to {smax}")
+        while self._running is True:
+            self._turn += 1
+            if self._turn > 1:
+                for _ in range(1, len(self._players)+1):
+                    print("\033[1A\033[2K\r", end="")
+                    print("\033[1A\033[2K\r", end="")
+            print(f"Turn {self._turn}\n")
+            for p in self._players:
+                try:
+                    player_input = p.get()
+                    identifier = self.scan_value(p, player_input)
+                    [_p.push_put(identifier) for _p in self._players if hasattr(_p, 'push_put')]
+                    p._state = identifier
+                except KeyboardInterrupt:
+                    self._running = False
+                    print("Quitting the game")
+            for p in self._players:
+                if self._players.index(p) == 0:
+                    print(f'\033[{len(self._players)-1}A', end='')
+                print(f"\033[2K\r{p.Name}: {p.history()[-1]} {'(Too big)' if p._state.was is big else ('(Too small)' if p._state.was is small else '(Correct!)')}")
+                sleep(0.1)
+            sleep(2)
+            if self._request_state == stop_game:
+                self._running = False
+        print(f'Game ends in {self._turn} turn(s) with {len(self._winner)} winning player(s)!')
 
 class ProtoPlayer(Protocol):
     def get_id(self) -> Union[str, UUID, None]:
@@ -379,6 +417,11 @@ class BasePlayer:
         self._uid: UUID = None
         self._name = name
         self._level = level
+        self._inputs = []
+        self._state = None
+
+    def get_state(self):
+        return self._state
 
     def get(self):
         return None
@@ -392,12 +435,30 @@ class BasePlayer:
     def get_id(self):
         return self._name if not hasattr(self, '_uid') else self._uid
 
+    def history(self):
+        return tuple(self._inputs)
+
     def reset(self):
         pass
 
     @property
     def Name(self):
         return self._name
+
+
+class Player(BasePlayer):
+    def __init__(self, name: str):
+        super().__init__(name, 0)   
+ 
+    def get(self):
+        try:
+            x = int(input("\033[2KYour input: "))
+            self._inputs.append(x)
+            return x
+        except (Exception, KeyboardInterrupt) as exc:
+            print('')
+            self._inputs.append(None)
+        return 0
 
 
 class Bot(BasePlayer):
@@ -444,10 +505,10 @@ class Bot(BasePlayer):
         _max = min(maxs).value if len(maxs) != 0 else None
         #print(self, "min="+str(_min or self._min), "max="+str(_max or self._max), self._level)
         self.put(_min, _max)
-
+    
     def tell(self, *args, maxplayers=1):
         self._max_pending = maxplayers if maxplayers > 0 else 1
-
+    
     def push_put(self, value: 'Identifier'):
         #print('On push put!')
         self._pendings.append(value)
@@ -455,7 +516,7 @@ class Bot(BasePlayer):
         if self._max_pending == len(self._pendings):
             #print("Reached max pending!")
             self.do_pending()
-
+    
     def do_pending(self):
         self.critical_put(self._pendings)
         self._pendings.clear()
@@ -463,6 +524,9 @@ class Bot(BasePlayer):
     def reset(self):
         self._min: int = BaseGame.level.get(self._level, -1024)[1]
         self._max: int = BaseGame.level.get(self._level, 1024)[0]
+
+    def history(self):
+        return tuple(self._last)
 
 
 @dataclass(init=True, repr=False)
@@ -473,31 +537,26 @@ class Identifier:
 
     def __eq__(self, other):
         return self.value == other.value
-
+    
     def __gt__(self, other):
         return self.value > other.value
-
+    
     def __ge__(self, other):
         return self.value >= other.value
-
+    
     def __lt__(self, other):
         return self.value < other.value
-
+    
     def __le__(self, other):
         return self.value <= other.value
-
+    
     def __repr__(self):
         return f"Identifier({self.player._name})"
 
-
-def _always_false(x): return False
-def _always_true(x): return True
-
-
-big = Symbol('big', 'bigger', lt_hook=_always_false,
-             le_hook=_always_false, gt_hook=_always_true, ge_hook=_always_false)
-small = Symbol('small', 'smaller', lt_hook=_always_true,
-               le_hook=_always_true, gt_hook=_always_false, ge_hook=_always_false)
+_always_false = lambda x: False
+_always_true = lambda x: True
+big = Symbol('big', 'bigger', lt_hook=_always_false, le_hook=_always_false, gt_hook=_always_true, ge_hook=_always_false)
+small = Symbol('small', 'smaller', lt_hook=_always_true, le_hook=_always_true, gt_hook=_always_false, ge_hook=_always_false)
 keep_running = Symbol('KeepRunning', 'Keep')
 stop_game = Symbol('StopGame', 'Stopping')
 already_stop = Symbol('AlreadyStop', 'Stop')

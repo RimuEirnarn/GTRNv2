@@ -12,3 +12,4 @@ _debug*
 .pytest_cache
 .pytest_cache/*
 _scanimportdir.sh
+_unusedlib.py
