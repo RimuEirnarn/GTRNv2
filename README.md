@@ -46,10 +46,6 @@ python3.9 GTRNv2/singleplayer.py
 GTRNv2
 ```
 
-## Depedencies
-
-There's no **depedencies** in this game. Everything else is defined in python standard library. Applause for it 'cause you don't need pip or anything else.
-
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

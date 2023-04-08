@@ -8,7 +8,7 @@ if system() != 'Linux':
     raise OSError(
         f"{system()} is not Linux. It requires setuid and setgid to install.")
 
-from liblinuxutil import parse_args, popen
+from packs.liblinuxutil import parse_args, popen
 
 
 def adduser(username, group=None, **configs):

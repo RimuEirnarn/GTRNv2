@@ -13,3 +13,4 @@ _debug*
 .pytest_cache/*
 _scanimportdir.sh
 _unusedlib.py
+.venv

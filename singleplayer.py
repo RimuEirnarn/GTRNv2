@@ -1,4 +1,6 @@
-from lib import Player, SinglePlayer, Bot
+from packs.players.bot import Bot
+from packs.players.player import Player
+from packs.game.singleplayer import SinglePlayer
 
 level = 5
 try:

@@ -5,44 +5,21 @@ In the nutshell, generalised utilities.
 
 There's no need to import PATH from lib when there's generalised library."""
 
+import os
 from base64 import b64decode, b64encode
 from io import FileIO
-import os
-from typing import Any, Callable, Dict, Literal, Union
-from threading import Event
 from platform import system
-from uuid import uuid5, uuid1
-from warnings import warn
+from threading import Event
+from typing import Any, Callable, Dict, Literal, Union
 from urllib.parse import urlsplit
-from inspect import currentframe as _icf, getframeinfo as _igfi
-from ast import parse as _astparse
+from uuid import UUID, uuid1, uuid5
+
+from .errors import AssignedProtocolError
+from .symbol import Symbol
 
 # Pre-constants
 
 MODE = Literal['rb', 'r', 'wb', 'w']
-
-
-# =================================================================
-
-#                            Error Classes
-
-# =================================================================
-
-
-class AssignedProtocolError(Exception):
-    """A prefix protocol is already defined"""
-
-
-class NewUserWarning(UserWarning):
-    def warn(self, message: str, *args, **kwargs):
-        warn(message, self.__class__, *args, **kwargs)
-
-
-class RedefineIsRequired(NewUserWarning):
-    """This method needs to re-defined on subclass."""
-
-    def warn(self, *args, **kwargs):
-        super().warn("This method needs to re-defined on subclass", *args, **kwargs)
 
 
 # =================================================================
@@ -66,93 +43,10 @@ def _check_prefix(d: str):
 # =================================================================
 
 
-class Symbol:
-    """Symbol
-
-    This class marks a certain name as symbol's name (or flag) and store a value.
-    when doing:
-    >>> x, y = Symbol('Hello'), Symbol("Hello")
-    >>> x is y
-    will return True"""
-    _sym = {}
-
-    def __new__(cls, name, value, /, lt_hook: Callable = None, le_hook: Callable = None, gt_hook: Callable = None, ge_hook: Callable = None):
-        if name is None and value is None: # This shit is copied from RPGSample/libshared.py
-            caller = _igfi(_icf().f_back) # Don't edit this part.
-            if caller.code_context is not None:
-                code = _astparse(caller.code_context[caller.index])
-                name = code.body[0].targets[0].id
-                value = f"Ref[{caller.function}.{name}]"
-            else:
-                code = None
-                name = f'Constant-{len(self._objects)}'
-                value = f"Ref[{name}]"
-            del caller, code
-        if name in cls._sym:
-            return cls._sym[name]
-        self = super().__new__(cls)
-        Symbol._sym[name] = self
-        return self
-
-    def __init__(self, name, value, /, lt_hook: Callable = None, le_hook: Callable = None, gt_hook: Callable = None, ge_hook: Callable = None):
-        if name is None and value is None:  # This shit is copied from RPGSample/libshared.py
-            caller = _igfi(_icf().f_back)  # Don't edit this part.
-            if caller.code_context is not None:
-                code = _astparse(caller.code_context[caller.index])
-                name = code.body[0].targets[0].id
-                value = f"Ref[{caller.function}.{name}]"
-            else:
-                code = None
-                name = f'Constant-{len(self._objects)}'
-                value = f"Ref[{name}]"
-            del caller, code
-        self._name = name
-        self._value = value
-        self._type = type(value)
-        self._default_hook = lambda other: False
-        self._hooks = {
-            'lt': lt_hook or self._default_hook,
-            'le': le_hook or self._default_hook,
-            'gt': gt_hook or self._default_hook,
-            'ge': ge_hook or self._default_hook
-        }
-
-    def __str__(self):
-        if self._type is not str:
-            return NotImplemented
-        return self._value
-
-    def __int__(self):
-        """Return int(self)."""
-        if self._type is not int:
-            return NotImplemented
-        return self._value
-
-    def __float__(self):
-        """Return float(self)."""
-        if self._type is not float:
-            return NotImplemented
-        return self._value
-
-    def __gt__(self, other):
-        return self._hooks['gt'](other)
-
-    def __le__(self, other):
-        return self._hooks['le'](other)
-
-    def __lt__(self, other):
-        return self._hooks['lt'](other)
-
-    def __ge__(self, other):
-        return self._hooks['ge'](other)
-
-    def __repr__(self):
-        return f"Symbol(%s)" % self._name
-
 # Constants
-
-
 default = Symbol('default', object())
+_default = Symbol("default", None)
+default_uid = UUID(int=0)
 
 # =========
 
@@ -175,7 +69,7 @@ class Protocol:
             raise NotImplementedError
         Protocol._prefix[prefix] = cls
         if final is True:
-            cls.__init_subclass__ = finaliser
+            cls.__init_subclass__ = finaliser  # type: ignore
 
     def __new__(cls, url: str):
         prefix, _, path = url.partition("://")
@@ -229,12 +123,14 @@ class ConfigProtocol(Protocol, prefix='config'):
                 f"[{self._config_name}] No such 'file' or 'directory'.")
 
     def get(self):
+        if self._config is None:
+            raise ValueError("Configuration is undefined")
         left_object = self._config
         left_key = None
         index = 0
         raise_ = False
         if len(self._lpath_config) == 0:
-            raise Exception("Path to variable is needed.")
+            raise ValueError("Path to variable is needed.")
         for a in self._lpath_config:
             if raise_ is True:
                 _2left = self._lpath_config[index - 2] \
@@ -247,7 +143,7 @@ class ConfigProtocol(Protocol, prefix='config'):
                 if not hasattr(left_object, '__getitem__'):
                     raise_ = True
                 if a in left_object:
-                    left_object = left_object[a]
+                    left_object: Configuration = left_object[a]
                     left_key = a
             else:
                 if isinstance(left_object, Configuration):
@@ -285,22 +181,22 @@ class Configuration:
     def __contains__(self, __name: str):
         return self._data.__contains__(__name)
 
-    def __new__(cls, ref=Symbol('default', None), __data: dict = None, **kwargs):
+    def __new__(cls, ref: Symbol | Any = _default, __data: dict | None = None, **kwargs):
         if ref in Configuration._instances:
             return Configuration._instances[ref]
 
         self = super().__new__(cls)
         Configuration._instances[ref] = self
-        #self.__init__(ref, __data, **kwargs)
+        # self.__init__(ref, __data, **kwargs)
         return self
 
-    def __init__(self, ref=Symbol('default', None), __data: dict = None, **kwargs):
+    def __init__(self, ref: Symbol | Any = _default, __data: dict | None = None, **kwargs):
         if not isinstance(ref, Symbol):
             ref = Symbol(f'Reference[{type(ref)}]', ref)
         if ref._value == "GameConfig":
             prev = True
 
-            def expander(data: Union[Any, str]):
+            def expander(data: Any | str):
                 if not _check_prefix(data):
                     return data
                 try:
@@ -308,7 +204,7 @@ class Configuration:
                 except Exception:
                     return data
 
-            def update_hook(data: Dict[str, Union[str, Any]]):
+            def update_hook(data: dict[str, Union[str, Any]]):  # type: ignore
                 x = {}
                 for k, v in data.items():
                     x[k] = expander(v)
@@ -354,21 +250,21 @@ class Configuration:
             return self.__dict__[__name]
         return self.__dict__['_data'][__name]
 
-    def __setattr__(self, __name: str, __value: str):
+    def __setattr__(self, __name: Any, __value: Any):
         """Implement setattr(name, value)."""
         if __name == '_nowritebase':
-            self.__dict__[__name] = __value
+            self.__dict__[__name] = __value  # type: ignore
             return
         if self.__dict__.get("_nowritebase", False) is False:
             if not "_hook" in self.__dict__:
-                return super().__setattr__(__name, __value)
+                return super().__setattr__(__name, __value)  # type: ignore
 
             if not "_frozen" in self.__dict__:
-                return super().__setattr__(__name, self._hook(__value))
+                return super().__setattr__(__name, self._hook(__value))  # type: ignore
 
             if self._frozen.is_set():
                 return
-            super().__setattr__(__name, self._hook(__value))
+            super().__setattr__(__name, self._hook(__value))  # type: ignore
         else:
             self._data[__name] = self._hook(__value)
 
@@ -376,7 +272,7 @@ class Configuration:
         """x.__getitem__(y) <==> x[y]"""
         return self._data[__key]
 
-    def __setitem__(self, __key: str, __value: Any):
+    def __setitem__(self, __key: Any, __value: Any):
         """Set self[key] to value."""
         if '_hook' in self.__dict__:
             self._data[__key] = self._hook(__value)
@@ -387,11 +283,13 @@ class Configuration:
         """Delete self[key]."""
         del self._data[__key]
 
-    def __update__(self, __new_data: dict = None, **kwargs):
+    def __update__(self, __new_data: dict | None = None, **kwargs):
         """Update attributes of this object with a new data or kwargs."""
         if __new_data is not None:
             return self._data.update(__new_data)
         self._data.update(kwargs)
+
+    update = __update__
 
     def switch_ro(self):
         """Change the state of the writability of this singleton object."""
@@ -441,8 +339,8 @@ class Base64IO(FileIO):
         super().__init__(filename, mode)
         self._mode = mode
 
-    def read(self, __size: int = None) -> Union[str, bytes]:
-        x = super().read(__size)
+    def read(self, __size: int | None = None) -> Union[str, bytes]:
+        x = super().read(__size if __size else 0)
         if isinstance(x, str):
             x = x.encode('utf-8')
         x = b64decode(x, b'-_')
@@ -454,12 +352,14 @@ class Base64IO(FileIO):
         x = buffer if isinstance(buffer, bytes) else buffer.encode('utf-8')
         if 'b' in self._mode:
             return super().write(b64encode(x, b'-_'))
-        return super().write(b64encode(x, b'-_').decode('utf-8'))
+        return super().write(b64encode(x, b'-_'))
 
     def _raw_read(self, __size: int) -> Union[str, bytes]:
         return super().read(__size)
 
-    def _raw_read(self, buffer: Union[str, bytes]) -> int:
+    def _raw_write(self, buffer: Union[str, bytes]) -> int:
+        if isinstance(buffer, str):
+            buffer = buffer.encode('utf-8')
         return super().write(buffer)
 
 
@@ -528,7 +428,7 @@ def make_uid(name: str):
     return uuid5(n, name)
 
 
-__all__ = ['Symbol', 'Memory', 'Configuration', 'default',
+__all__ = ['Symbol', 'Configuration', 'default',
            'getpath', 'touch', 'install', 'expandproject']
 __version__ = "0.0.0 [02]"
 __author__ = "RimuEirnarn"

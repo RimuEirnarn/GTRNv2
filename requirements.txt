@@ -1,0 +1,2 @@
+sqlite-database @ https://github.com/RimuEirnarn/sqlite_database/archive/refs/heads/main.zip
+socket-wrapper @ https://github.com/RimuEirnarn/socket_wrapper/archive/refs/heads/main.zip
